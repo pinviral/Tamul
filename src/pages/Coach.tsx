@@ -7,7 +7,11 @@ import { ShareModal } from '../components/ShareModal';
 import { SubscriptionModal } from '../components/SubscriptionModal';
 import { motion, AnimatePresence } from 'motion/react';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getAi = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+};
 
 interface Message {
   id: string;
@@ -26,6 +30,8 @@ export const Coach: React.FC = () => {
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const ai = getAi();
+
   const isFree = profile?.plan === 'free';
   const messagesLeft = isFree ? Math.max(0, 10 - (profile?.dailyMessagesCount || 0)) : Infinity;
   const canSendMessage = !isFree || messagesLeft > 0;
@@ -36,6 +42,10 @@ export const Coach: React.FC = () => {
 
   const handleSend = async () => {
     if (!input.trim() || !canSendMessage || isLoading) return;
+    if (!ai) {
+      alert("عذراً، لم يتم تهيئة مفتاح API الخاص بـ Gemini. يرجى التحقق من الإعدادات.");
+      return;
+    }
 
     const userText = input.trim();
     setInput('');

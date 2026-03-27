@@ -5,17 +5,24 @@ import { getFirestore } from 'firebase/firestore';
 // Configuration is baked in during build via vite.config.ts
 // It will use firebase-applet-config.json if available, or environment variables
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID,
+  apiKey: process.env.FIREBASE_API_KEY || "",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
+  projectId: process.env.FIREBASE_PROJECT_ID || "",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: process.env.FIREBASE_APP_ID || "",
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, process.env.FIREBASE_DATABASE_ID || '(default)');
-export const auth = getAuth(app);
+// Check if we have a valid config before initializing
+const isFirebaseConfigured = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+
+if (!isFirebaseConfigured) {
+  console.error("Firebase configuration is missing! Please check your environment variables or firebase-applet-config.json.");
+}
+
+const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
+export const db = app ? getFirestore(app, process.env.FIREBASE_DATABASE_ID || '(default)') : null as any;
+export const auth = app ? getAuth(app) : null as any;
 
 export enum OperationType {
   CREATE = 'create',

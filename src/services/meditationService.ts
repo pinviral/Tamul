@@ -3,8 +3,12 @@ import { GoogleGenAI, Modality } from "@google/genai";
 let ai: GoogleGenAI | null = null;
 
 function getAi() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing! Please set it in your environment variables.");
+  }
   if (!ai) {
-    ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+    ai = new GoogleGenAI({ apiKey });
   }
   return ai;
 }

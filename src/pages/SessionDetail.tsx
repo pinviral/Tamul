@@ -7,7 +7,11 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { ShareModal } from '../components/ShareModal';
 import { motion } from 'motion/react';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getAi = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+};
 
 const BACKGROUND_MUSIC: Record<string, string> = {
   money: 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg',
@@ -120,6 +124,8 @@ export const SessionDetail: React.FC = () => {
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  const ai = getAi();
+
   useEffect(() => {
     if (session) {
       bgMusicRef.current = new Audio(BACKGROUND_MUSIC[session.category]);
@@ -165,6 +171,11 @@ export const SessionDetail: React.FC = () => {
 
   const prepareSession = async () => {
     if (!session) return;
+    if (!ai) {
+      alert("عذراً، لم يتم تهيئة مفتاح API الخاص بـ Gemini. يرجى التحقق من الإعدادات.");
+      setIsPreparing(false);
+      return;
+    }
     setIsPreparing(true);
     try {
       // 1. Generate Script

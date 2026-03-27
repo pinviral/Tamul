@@ -57,14 +57,14 @@ export default defineConfig(({mode}) => {
       })
     ],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY),
-      'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY || (firebaseConfig as any).apiKey),
-      'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN || (firebaseConfig as any).authDomain),
-      'process.env.FIREBASE_PROJECT_ID': JSON.stringify(env.FIREBASE_PROJECT_ID || (firebaseConfig as any).projectId),
-      'process.env.FIREBASE_STORAGE_BUCKET': JSON.stringify(env.FIREBASE_STORAGE_BUCKET || (firebaseConfig as any).storageBucket),
-      'process.env.FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(env.FIREBASE_MESSAGING_SENDER_ID || (firebaseConfig as any).messagingSenderId),
-      'process.env.FIREBASE_APP_ID': JSON.stringify(env.FIREBASE_APP_ID || (firebaseConfig as any).appId),
-      'process.env.FIREBASE_DATABASE_ID': JSON.stringify(env.FIREBASE_DATABASE_ID || (firebaseConfig as any).firestoreDatabaseId),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || ""),
+      'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY || (firebaseConfig as any).apiKey || ""),
+      'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN || (firebaseConfig as any).authDomain || ""),
+      'process.env.FIREBASE_PROJECT_ID': JSON.stringify(env.FIREBASE_PROJECT_ID || (firebaseConfig as any).projectId || ""),
+      'process.env.FIREBASE_STORAGE_BUCKET': JSON.stringify(env.FIREBASE_STORAGE_BUCKET || (firebaseConfig as any).storageBucket || ""),
+      'process.env.FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(env.FIREBASE_MESSAGING_SENDER_ID || (firebaseConfig as any).messagingSenderId || ""),
+      'process.env.FIREBASE_APP_ID': JSON.stringify(env.FIREBASE_APP_ID || (firebaseConfig as any).appId || ""),
+      'process.env.FIREBASE_DATABASE_ID': JSON.stringify(env.FIREBASE_DATABASE_ID || (firebaseConfig as any).firestoreDatabaseId || ""),
     },
     resolve: {
       alias: {
