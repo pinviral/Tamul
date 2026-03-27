@@ -3,7 +3,6 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Configuration is baked in during build via vite.config.ts
-// It will use firebase-applet-config.json if available, or environment variables
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY || "",
   authDomain: process.env.FIREBASE_AUTH_DOMAIN || "",
@@ -13,13 +12,16 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID || "",
 };
 
-// Check if we have a valid config before initializing
-const isFirebaseConfigured = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+// Strict check: Firebase API keys usually start with 'AIza'
+const isFirebaseConfigured = typeof firebaseConfig.apiKey === 'string' && 
+                             firebaseConfig.apiKey.startsWith('AIza') && 
+                             !!firebaseConfig.projectId;
 
 if (!isFirebaseConfigured) {
-  console.error("Firebase configuration is missing! Please check your environment variables or firebase-applet-config.json.");
+  console.warn("Firebase is not configured yet. Authentication and Database features will be disabled until API keys are added to Netlify.");
 }
 
+// Only initialize if we have a valid-looking key to avoid 'auth/invalid-api-key' crash
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const db = app ? getFirestore(app, process.env.FIREBASE_DATABASE_ID || '(default)') : null as any;
 export const auth = app ? getAuth(app) : null as any;
