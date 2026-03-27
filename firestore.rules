@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+    function userIdUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+    function userIdNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'plan', 'dailyMessagesCount', 'lastResetDate', 'streak', 'lastActive', 'totalMeditationsCompleted', 'totalCoachMessages']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             data.plan in ['free', 'pro'] &&
+             data.dailyMessagesCount is number && data.dailyMessagesCount >= 0 &&
+             data.lastResetDate is string && data.lastResetDate.size() <= 20 &&
+             data.streak is number && data.streak >= 0 &&
+             data.lastActive is string && data.lastActive.size() <= 20 &&
+             data.totalMeditationsCompleted is number && data.totalMeditationsCompleted >= 0 &&
+             data.totalCoachMessages is number && data.totalCoachMessages >= 0;
+    }
+
+    function isValidJournalEntry(data) {
+      return hasOnlyAllowedFields(['userId', 'date', 'note', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.note is string && data.note.size() <= 5000 &&
+             (data.createdAt is string || data.createdAt is timestamp);
+    }
+
+    function isValidMoodEntry(data) {
+      return hasOnlyAllowedFields(['userId', 'date', 'mood', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.mood is string && data.mood.size() > 0 && data.mood.size() < 50 &&
+             (data.createdAt is string || data.createdAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged() && request.resource.data.plan == 'free';
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && 
+                    (request.resource.data.plan == resource.data.plan || request.resource.data.plan in ['free', 'pro']);
+    }
+
+    match /journalEntries/{entryId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidJournalEntry(request.resource.data) && userIdUnchanged();
+      allow update: if isAuthenticated() && isDocOwner() && isValidJournalEntry(request.resource.data) && userIdNotModified();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /moodEntries/{entryId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidMoodEntry(request.resource.data) && userIdUnchanged();
+      allow update: if isAuthenticated() && isDocOwner() && isValidMoodEntry(request.resource.data) && userIdNotModified();
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+  }
+}

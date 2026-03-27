@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and statistics",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "plan": { "type": "string", "enum": ["free", "pro"] },
+        "dailyMessagesCount": { "type": "number" },
+        "lastResetDate": { "type": "string" },
+        "streak": { "type": "number" },
+        "lastActive": { "type": "string" },
+        "totalMeditationsCompleted": { "type": "number" },
+        "totalCoachMessages": { "type": "number" }
+      },
+      "required": ["uid", "email", "plan", "dailyMessagesCount", "lastResetDate", "streak", "lastActive", "totalMeditationsCompleted", "totalCoachMessages"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "A user's journal entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "date", "note", "createdAt"]
+    },
+    "MoodEntry": {
+      "title": "MoodEntry",
+      "description": "A user's mood entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "mood": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "date", "mood", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profiles and stats"
+    },
+    "/journalEntries/{entryId}": {
+      "schema": { "$ref": "#/entities/JournalEntry" },
+      "description": "Stores journal entries"
+    },
+    "/moodEntries/{entryId}": {
+      "schema": { "$ref": "#/entities/MoodEntry" },
+      "description": "Stores mood entries"
+    }
+  }
+}

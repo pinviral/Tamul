@@ -1,0 +1,9 @@
+{
+  "name": "Remix: Taamul - تأمل",
+  "description": "منصة للصحة النفسية والتأمل، تتضمن جلسات تأمل، مدرب ذكي، ومذكرة يومية.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
