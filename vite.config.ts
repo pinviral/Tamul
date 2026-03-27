@@ -37,19 +37,19 @@ export default defineConfig(({mode}) => {
           dir: 'rtl',
           icons: [
             {
-              src: 'pwa-192x192.png',
+              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=taamul&backgroundColor=007AFF',
               sizes: '192x192',
-              type: 'image/png'
+              type: 'image/svg+xml'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=taamul&backgroundColor=007AFF',
               sizes: '512x512',
-              type: 'image/png'
+              type: 'image/svg+xml'
             },
             {
-              src: 'pwa-512x512.png',
+              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=taamul&backgroundColor=007AFF',
               sizes: '512x512',
-              type: 'image/png',
+              type: 'image/svg+xml',
               purpose: 'any maskable'
             }
           ]

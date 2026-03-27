@@ -17,6 +17,12 @@
       "src": "https://api.dicebear.com/7.x/shapes/svg?seed=taamul&backgroundColor=007AFF",
       "sizes": "512x512",
       "type": "image/svg+xml"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=taamul&backgroundColor=007AFF",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

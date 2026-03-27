@@ -13,9 +13,12 @@ const firebaseConfig = {
 };
 
 // Strict check: Firebase API keys usually start with 'AIza'
+// Also check if the value is literally the string "undefined" which can happen with some build tools
 const isFirebaseConfigured = typeof firebaseConfig.apiKey === 'string' && 
+                             firebaseConfig.apiKey.length > 10 &&
                              firebaseConfig.apiKey.startsWith('AIza') && 
-                             !!firebaseConfig.projectId;
+                             !!firebaseConfig.projectId &&
+                             firebaseConfig.projectId !== "undefined";
 
 if (!isFirebaseConfigured) {
   console.warn("Firebase is not configured yet. Authentication and Database features will be disabled until API keys are added to Netlify.");
@@ -23,7 +26,7 @@ if (!isFirebaseConfigured) {
 
 // Only initialize if we have a valid-looking key to avoid 'auth/invalid-api-key' crash
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
-export const db = app ? getFirestore(app, process.env.FIREBASE_DATABASE_ID || '(default)') : null as any;
+export const db = app ? getFirestore(app, (process.env.FIREBASE_DATABASE_ID && process.env.FIREBASE_DATABASE_ID !== "undefined") ? process.env.FIREBASE_DATABASE_ID : '(default)') : null as any;
 export const auth = app ? getAuth(app) : null as any;
 
 export enum OperationType {
