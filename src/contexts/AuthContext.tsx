@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInWithRedirect } from 'firebase/auth';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
 export interface UserProfile {
@@ -41,7 +41,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser && db) {
+        // Initial fetch and daily reset
         await fetchOrCreateProfile(currentUser);
+        
+        // Real-time listener for profile changes (e.g. plan upgrade)
+        const profileUnsubscribe = onSnapshot(doc(db, 'users', currentUser.uid), (doc) => {
+          if (doc.exists()) {
+            setProfile(doc.data() as UserProfile);
+          }
+        });
+
+        return () => {
+          profileUnsubscribe();
+        };
       } else {
         setProfile(null);
       }
@@ -112,14 +124,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     if (!auth) {
-      alert("Firebase is not configured. Please check your settings.");
-      return;
+      throw new Error("Firebase is not configured. Please check your Netlify environment variables.");
     }
     const provider = new GoogleAuthProvider();
+    // Force account selection to avoid auto-login issues
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
+      // Try popup first
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with Google", error);
+      
+      // Handle specific Firebase errors
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+        // Fallback to redirect for mobile or if blocked
+        try {
+          await signInWithRedirect(auth, provider);
+        } catch (redirectError: any) {
+          throw new Error("تم حظر النافذة المنبثقة وفشل التوجيه البديل. يرجى السماح بالنوافذ المنبثقة.");
+        }
+      } else if (error.code === 'auth/unauthorized-domain') {
+        throw new Error("هذا النطاق (taamul.netlify.app) غير مصرح به في Firebase. يرجى إضافته في Authorized Domains في لوحة تحكم Firebase.");
+      } else if (error.code === 'auth/operation-not-allowed') {
+        throw new Error("تسجيل الدخول عبر جوجل غير مفعل في Firebase. يرجى تفعيله من قسم Authentication.");
+      } else {
+        throw new Error(`خطأ في تسجيل الدخول: ${error.message}`);
+      }
     }
   };
 

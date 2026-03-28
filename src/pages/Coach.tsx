@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const getAi = () => {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey || apiKey === "undefined" || apiKey === "") return null;
   return new GoogleGenAI({ apiKey });
 };
 
@@ -43,7 +43,11 @@ export const Coach: React.FC = () => {
   const handleSend = async () => {
     if (!input.trim() || !canSendMessage || isLoading) return;
     if (!ai) {
-      alert("عذراً، لم يتم تهيئة مفتاح API الخاص بـ Gemini. يرجى التحقق من الإعدادات.");
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'model', 
+        text: '⚠️ **خطأ في الإعدادات:** مفتاح Gemini API غير موجود. يرجى إضافة `GEMINI_API_KEY` في إعدادات Netlify وإعادة بناء التطبيق.' 
+      }]);
       return;
     }
 

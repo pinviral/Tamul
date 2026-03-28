@@ -4,10 +4,39 @@ import { Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const Login: React.FC = () => {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, loading: authLoading, user } = useAuth();
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // If user is already logged in, they shouldn't be here, but just in case
+  React.useEffect(() => {
+    if (user) {
+      // Redirect or handle as needed
+    }
+  }, [user]);
+
+  const handleLogin = async () => {
+    setIsLoggingIn(true);
+    setError(null);
+    console.log("Starting login process...");
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      console.error("Login error caught in UI:", err);
+      setError(err.message || "حدث خطأ أثناء تسجيل الدخول");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F2F2F7] dark:bg-black relative flex flex-col items-center justify-center p-5 overflow-hidden">
+      {/* Configuration Warning */}
+      {!process.env.FIREBASE_API_KEY && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white p-2 text-center text-xs font-bold">
+          تنبيه: لم يتم ضبط مفاتيح Firebase في Netlify بعد.
+        </div>
+      )}
       {/* Dynamic Background */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-b from-[#E5F0FF] to-[#F2F2F7] dark:from-[#0A84FF]/20 dark:to-black opacity-80" />
@@ -52,14 +81,26 @@ export const Login: React.FC = () => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.6 }}
-          className="w-full"
+          className="w-full space-y-4"
         >
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-[20px] text-sm text-center border border-red-100 dark:border-red-900/30">
+              {error}
+            </div>
+          )}
           <button
-            onClick={signInWithGoogle}
-            className="w-full glass-panel bg-white/80 dark:bg-[#1C1C1E]/80 text-[#1C1C1E] dark:text-white px-6 py-4 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] border border-white/50 dark:border-white/10 font-semibold text-[17px] flex items-center justify-center space-x-3 space-x-reverse active:scale-95 transition-all"
+            onClick={handleLogin}
+            disabled={isLoggingIn || authLoading}
+            className="w-full glass-panel bg-white/80 dark:bg-[#1C1C1E]/80 text-[#1C1C1E] dark:text-white px-6 py-4 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.2)] border border-white/50 dark:border-white/10 font-semibold text-[17px] flex items-center justify-center space-x-3 space-x-reverse active:scale-95 transition-all disabled:opacity-50"
           >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
-            <span>المتابعة باستخدام حساب جوجل</span>
+            {isLoggingIn ? (
+              <div className="w-6 h-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-6 h-6" />
+                <span>المتابعة باستخدام حساب جوجل</span>
+              </>
+            )}
           </button>
         </motion.div>
       </div>

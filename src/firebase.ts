@@ -26,7 +26,19 @@ if (!isFirebaseConfigured) {
 
 // Only initialize if we have a valid-looking key to avoid 'auth/invalid-api-key' crash
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
-export const db = app ? getFirestore(app, (process.env.FIREBASE_DATABASE_ID && process.env.FIREBASE_DATABASE_ID !== "undefined") ? process.env.FIREBASE_DATABASE_ID : '(default)') : null as any;
+
+// Determine the database ID. If it's an internal AI Studio ID (starts with ai-studio-), 
+// it's likely a leftover from a remix and should be '(default)' for a standard Firebase project.
+const getDatabaseId = () => {
+  const envId = process.env.FIREBASE_DATABASE_ID;
+  if (envId && envId !== "undefined") {
+    if (envId.startsWith('ai-studio-')) return '(default)';
+    return envId;
+  }
+  return '(default)';
+};
+
+export const db = app ? getFirestore(app, getDatabaseId()) : null as any;
 export const auth = app ? getAuth(app) : null as any;
 
 export enum OperationType {

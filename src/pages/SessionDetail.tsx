@@ -21,51 +21,6 @@ const BACKGROUND_MUSIC: Record<string, string> = {
   energy: 'https://actions.google.com/sounds/v1/birds/birds_in_forest.ogg'
 };
 
-function pcmToWavUrl(base64Pcm: string): string {
-  const binaryString = atob(base64Pcm);
-  const pcmData = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    pcmData[i] = binaryString.charCodeAt(i);
-  }
-
-  const numChannels = 1;
-  const sampleRate = 24000;
-  const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-  const blockAlign = numChannels * (bitsPerSample / 8);
-  const dataSize = pcmData.length;
-  const chunkSize = 36 + dataSize;
-
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, chunkSize, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataSize, true);
-
-  const pcmBytes = new Uint8Array(buffer, 44);
-  pcmBytes.set(pcmData);
-
-  const blob = new Blob([buffer], { type: 'audio/wav' });
-  return URL.createObjectURL(blob);
-}
-
 const CATEGORY_BG_CLASSES: Record<string, string> = {
   money: 'from-[#E5F0FF] to-[#F2F2F7] dark:from-[#0A84FF]/20 dark:to-black',
   stress: 'from-[#E5F9E0] to-[#F2F2F7] dark:from-[#34C759]/20 dark:to-black',
@@ -122,24 +77,76 @@ export const SessionDetail: React.FC = () => {
   const [isLiked, setIsLiked] = useState(false);
   
   const bgMusicRef = useRef<HTMLAudioElement | null>(null);
-  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const voiceBufferSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   const ai = getAi();
+
+  const playPcmData = async (base64Pcm: string) => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = audioContextRef.current;
+      const binaryString = atob(base64Pcm);
+      const len = binaryString.length;
+      const bytes = new Int16Array(len / 2);
+      for (let i = 0; i < len; i += 2) {
+        bytes[i / 2] = (binaryString.charCodeAt(i + 1) << 8) | binaryString.charCodeAt(i);
+      }
+
+      const audioBuffer = ctx.createBuffer(1, bytes.length, 24000);
+      const channelData = audioBuffer.getChannelData(0);
+      for (let i = 0; i < bytes.length; i++) {
+        channelData[i] = bytes[i] / 32768;
+      }
+
+      if (voiceBufferSourceRef.current) {
+        voiceBufferSourceRef.current.stop();
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      
+      if (!gainNodeRef.current) {
+        gainNodeRef.current = ctx.createGain();
+        gainNodeRef.current.connect(ctx.destination);
+      }
+      
+      source.connect(gainNodeRef.current);
+      voiceBufferSourceRef.current = source;
+      
+      source.onended = () => {
+        if (bgMusicRef.current) bgMusicRef.current.volume = 0.3;
+      };
+
+      if (isPlaying) {
+        if (bgMusicRef.current) bgMusicRef.current.volume = 0.15;
+        source.start(0);
+      }
+    } catch (err) {
+      console.error("Error playing PCM data:", err);
+    }
+  };
 
   useEffect(() => {
     if (session) {
       bgMusicRef.current = new Audio(BACKGROUND_MUSIC[session.category]);
       bgMusicRef.current.loop = true;
-      bgMusicRef.current.volume = 0.2; // Background music should be quiet
+      bgMusicRef.current.volume = 0.2;
     }
     return () => {
       if (bgMusicRef.current) {
         bgMusicRef.current.pause();
         bgMusicRef.current = null;
       }
-      if (voiceAudioRef.current) {
-        voiceAudioRef.current.pause();
-        voiceAudioRef.current = null;
+      if (voiceBufferSourceRef.current) {
+        voiceBufferSourceRef.current.stop();
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
       }
     };
   }, [session]);
@@ -160,7 +167,9 @@ export const SessionDetail: React.FC = () => {
   const handleComplete = async () => {
     setCompleted(true);
     if (bgMusicRef.current) bgMusicRef.current.pause();
-    if (voiceAudioRef.current) voiceAudioRef.current.pause();
+    if (voiceBufferSourceRef.current) {
+      voiceBufferSourceRef.current.stop();
+    }
 
     if (profile) {
       await updateProfile({
@@ -178,12 +187,19 @@ export const SessionDetail: React.FC = () => {
     }
     setIsPreparing(true);
     try {
-      // 1. Generate Script
-      const prompt = `أنت كوتش تأمل محترف بخبرة تزيد عن 20 عاماً. بناءً على أحدث الأبحاث والمحتوى الرائج في محركات البحث ووسائل التواصل الاجتماعي حول "${session.title}"، اكتب نص جلسة تأمل احترافية وعميقة باللغة العربية الفصحى.
-الهدف: ${session.description}
-يجب أن يكون النص هادئاً، مريحاً، ومليئاً بالتوكيدات الإيجابية العميقة التي تلامس الروح.
-الطول: حوالي 150 كلمة.
-لا تضع أي مقدمات أو ملاحظات، فقط النص الذي سيتم قراءته ببطء بصوت رجولي هادئ.`;
+      // 1. Generate Professional Script based on global studies and famous books
+      const prompt = `أنت كوتش تأمل عالمي خبير. اكتب نص جلسة تأمل احترافية وعميقة جداً بعنوان "${session.title}".
+المحتوى يجب أن يكون مستوحى من دراسات علمية وكتب شهيرة مثل (قانون الجذب، عقلية المليونير، قوة الآن، أو أسرار عقل المليونير) حسب نوع الجلسة.
+
+هيكل الجلسة الإلزامي:
+1. ترحيب دافئ: "مرحباً بك في هذه الجلسة الاحترافية لـ ${session.title}..."
+2. تمرين تنفس عميق: "اختر مكاناً هادئاً... خذ زفيراً عميقاً من البطن... عد حتى 4... ثم شهيقاً طويلاً من الفم..."
+3. صلب الموضوع: توكيدات قوية وعميقة مبنية على الكتب المذكورة أعلاه.
+4. خاتمة هادئة.
+
+اللغة: عربية فصحى راقية، هادئة، وبطيئة.
+الطول: حوالي 200 كلمة.
+ملاحظة: لا تضع أي مقدمات نصية (مثل "إليك النص")، ابدأ مباشرة بالنص الذي سيقرأه المدرب.`;
 
       const textResponse = await ai.models.generateContent({
         model: "gemini-3.1-flash-preview",
@@ -193,7 +209,7 @@ export const SessionDetail: React.FC = () => {
       const script = textResponse.text || session.description;
       setSessionScript(script);
 
-      // 2. Generate Voice (TTS)
+      // 2. Generate Voice (TTS) with a deep professional male voice
       const ttsResponse = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: script }] }],
@@ -201,7 +217,7 @@ export const SessionDetail: React.FC = () => {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
               voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: 'Zephyr' }, // Zephyr is a deep male voice
+                prebuiltVoiceConfig: { voiceName: 'Charon' },
               },
           },
         },
@@ -209,25 +225,7 @@ export const SessionDetail: React.FC = () => {
 
       const base64Audio = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
-        console.log("TTS Audio generated successfully, length:", base64Audio.length);
-        const audioUrl = pcmToWavUrl(base64Audio);
-        if (!voiceAudioRef.current) {
-          voiceAudioRef.current = new Audio();
-        }
-        voiceAudioRef.current.src = audioUrl;
-        voiceAudioRef.current.load(); // Ensure it loads
-        voiceAudioRef.current.volume = 1.0;
-        
-        // When voice ends, let the background music continue until the timer finishes
-        voiceAudioRef.current.onended = () => {
-          console.log("Voice playback ended");
-        };
-        
-        voiceAudioRef.current.onerror = (e) => {
-          console.error("Voice audio playback error:", e);
-        };
-      } else {
-        console.error("No audio data received from TTS API");
+        await playPcmData(base64Audio);
       }
     } catch (error) {
       console.error("Error preparing session:", error);
@@ -243,15 +241,17 @@ export const SessionDetail: React.FC = () => {
     if (bgMusicRef.current) {
       bgMusicRef.current.play().catch(e => console.error("Audio play error:", e));
     }
-    if (voiceAudioRef.current) {
-      voiceAudioRef.current.play().catch(e => console.error("Voice play error:", e));
+    if (voiceBufferSourceRef.current && audioContextRef.current?.state === 'suspended') {
+      audioContextRef.current.resume();
     }
   };
 
   const pausePlayback = () => {
     setIsPlaying(false);
     if (bgMusicRef.current) bgMusicRef.current.pause();
-    if (voiceAudioRef.current) voiceAudioRef.current.pause();
+    if (audioContextRef.current?.state === 'running') {
+      audioContextRef.current.suspend();
+    }
   };
 
   const togglePlay = () => {
@@ -259,9 +259,6 @@ export const SessionDetail: React.FC = () => {
       setTimeLeft(session!.duration * 60);
       setCompleted(false);
       setSessionScript('');
-      if (voiceAudioRef.current) {
-        voiceAudioRef.current.currentTime = 0;
-      }
       if (bgMusicRef.current) {
         bgMusicRef.current.currentTime = 0;
       }
@@ -270,17 +267,17 @@ export const SessionDetail: React.FC = () => {
     if (isPlaying) {
       pausePlayback();
     } else {
-      if (!voiceAudioRef.current && !sessionScript) {
-        // Unlock audio on iOS by playing/pausing synchronously in the click handler
-        if (!voiceAudioRef.current) {
-          voiceAudioRef.current = new Audio();
+      if (!sessionScript) {
+        // Unlock audio context
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
-        voiceAudioRef.current.play().catch(() => {});
-        voiceAudioRef.current.pause();
-
+        if (audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume();
+        }
+        
         if (bgMusicRef.current) {
-          bgMusicRef.current.play().catch(() => {});
-          bgMusicRef.current.pause();
+          bgMusicRef.current.play().then(() => bgMusicRef.current?.pause()).catch(() => {});
         }
         
         prepareSession();
@@ -356,110 +353,113 @@ export const SessionDetail: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="text-center mb-12"
           >
-            <h1 className="text-[32px] font-bold text-[#1C1C1E] dark:text-white mb-4 tracking-tight leading-tight">{session.title}</h1>
-            <p className="text-[16px] text-[#8E8E93] leading-relaxed max-w-[300px] mx-auto line-clamp-3">
+            <h1 className="text-[32px] font-bold text-[#1C1C1E] dark:text-white mb-4 tracking-tight leading-tight px-4">{session.title}</h1>
+            <p className="text-[16px] text-[#8E8E93] leading-relaxed max-w-[340px] mx-auto line-clamp-3 opacity-90">
               {sessionScript || session.description}
             </p>
           </motion.div>
 
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
-            className="w-72 h-72 relative flex items-center justify-center mb-8"
-          >
-            {/* Background Blob Animation */}
-            {isPlaying && (
-              <motion.div 
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  rotate: [0, 90, 180, 270, 360],
-                  borderRadius: ["50%", "40% 60% 70% 30% / 40% 50% 60% 50%", "50%"]
-                }}
-                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                className={`absolute inset-0 ${CATEGORY_BLOB_CLASSES[session.category]} blur-2xl opacity-50`}
-              />
-            )}
+          <div className="relative flex flex-col items-center justify-center scale-110">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}
+              className="w-80 h-80 relative flex items-center justify-center"
+            >
+              {/* Background Blob Animation */}
+              {isPlaying && (
+                <motion.div 
+                  animate={{ 
+                    scale: [1, 1.1, 1],
+                    rotate: [0, 90, 180, 270, 360],
+                    borderRadius: ["50%", "40% 60% 70% 30% / 40% 50% 60% 50%", "50%"]
+                  }}
+                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                  className={`absolute inset-0 ${CATEGORY_BLOB_CLASSES[session.category]} blur-3xl opacity-40`}
+                />
+              )}
 
-            {/* Circular Progress SVG */}
-            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
-              {/* Track */}
-              <circle 
-                cx="50" cy="50" r="48" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                className="text-black/5 dark:text-white/5"
-              />
-              {/* Progress */}
-              <circle 
-                cx="50" cy="50" r="48" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="4" 
-                strokeLinecap="round"
-                strokeDasharray="301.59"
-                strokeDashoffset={(progress / 100) * 301.59}
-                className={`${CATEGORY_TEXT_CLASSES[session.category]} transition-all duration-1000 ease-linear`}
-              />
-            </svg>
+              {/* Circular Progress SVG */}
+              <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+                {/* Track */}
+                <circle 
+                  cx="50" cy="50" r="46" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="1.5" 
+                  className="text-black/5 dark:text-white/5"
+                />
+                {/* Progress */}
+                <circle 
+                  cx="50" cy="50" r="46" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="3" 
+                  strokeLinecap="round"
+                  strokeDasharray="289.02"
+                  strokeDashoffset={(progress / 100) * 289.02}
+                  className={`${CATEGORY_TEXT_CLASSES[session.category]} transition-all duration-1000 ease-linear`}
+                />
+              </svg>
 
-            {/* Timer Text */}
-            <div className="relative z-10 text-center flex flex-col items-center justify-center">
-              <span className={`text-7xl font-light ${CATEGORY_TEXT_CLASSES[session.category]} tracking-tight`} style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {formatTime(timeLeft)}
-              </span>
-            </div>
-          </motion.div>
+              {/* Timer Text & Play Button inside */}
+              <div className="relative z-10 text-center flex flex-col items-center justify-center">
+                <span className={`text-6xl font-extralight ${CATEGORY_TEXT_CLASSES[session.category]} tracking-tighter mb-4`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {formatTime(timeLeft)}
+                </span>
+                
+                <button 
+                  onClick={togglePlay}
+                  disabled={isPreparing}
+                  className={`w-24 h-24 ${CATEGORY_BG_SOLID_CLASSES[session.category]} text-white rounded-full flex items-center justify-center shadow-[0_15px_35px_rgba(0,0,0,0.2)] active:scale-90 transition-all disabled:opacity-50 group relative overflow-hidden`}
+                >
+                  {isPreparing ? (
+                    <Loader2 size={36} className="animate-spin" />
+                  ) : completed ? (
+                    <CheckCircle size={36} className="fill-current" />
+                  ) : isPlaying ? (
+                    <Pause size={36} className="fill-current" />
+                  ) : (
+                    <Play size={36} className="fill-current ml-2" />
+                  )}
+                  
+                  <div className="absolute inset-0 bg-white/10 opacity-0 group-active:opacity-100 transition-opacity" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
         </div>
 
-        {/* Controls */}
+        {/* Bottom Controls */}
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="px-8 mt-auto"
+          className="px-8 mt-auto pb-10"
         >
-          {/* Progress Bar */}
-          <div className="mb-8">
-            <div className="h-2 bg-[#E5E5EA] dark:bg-[#3A3A3C] rounded-full overflow-hidden">
+          <div className="mb-8 max-w-xs mx-auto">
+            <div className="flex justify-between mb-2 text-[12px] font-medium text-[#8E8E93] opacity-60">
+              <span>{formatTime((session.duration * 60) - timeLeft)}</span>
+              <span>{formatTime(session.duration * 60)}</span>
+            </div>
+            <div className="h-1 bg-[#E5E5EA] dark:bg-[#3A3A3C] rounded-full overflow-hidden">
               <div 
                 className={`h-full ${CATEGORY_BG_SOLID_CLASSES[session.category]} rounded-full transition-all duration-1000 ease-linear`}
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <div className="flex justify-between mt-3 text-[13px] font-medium text-[#8E8E93]">
-              <span>{formatTime((session.duration * 60) - timeLeft)}</span>
-              <span>{formatTime(session.duration * 60)}</span>
-            </div>
           </div>
 
-          {/* Play Button */}
-          <div className="flex justify-center items-center space-x-8 space-x-reverse mb-4">
-            <button className="text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white transition-colors active:scale-95">
-              <Volume2 size={26} />
+          <div className="flex justify-center items-center space-x-12 space-x-reverse">
+            <button className="text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white transition-colors active:scale-95 p-2">
+              <Volume2 size={24} />
             </button>
-            <button 
-              onClick={togglePlay}
-              disabled={isPreparing}
-              className={`w-20 h-20 ${CATEGORY_BG_SOLID_CLASSES[session.category]} text-white rounded-full flex items-center justify-center shadow-[0_10px_30px_rgba(0,0,0,0.15)] active:scale-95 transition-transform disabled:opacity-50`}
-            >
-              {isPreparing ? (
-                <Loader2 size={32} className="animate-spin" />
-              ) : completed ? (
-                <CheckCircle size={32} className="fill-current" />
-              ) : isPlaying ? (
-                <Pause size={32} className="fill-current" />
-              ) : (
-                <Play size={32} className="fill-current ml-2" />
-              )}
-            </button>
-            <button onClick={() => setShowShareModal(true)} className="text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white transition-colors active:scale-95">
-              <Share2 size={26} />
+            <button onClick={() => setShowShareModal(true)} className="text-[#8E8E93] hover:text-[#1C1C1E] dark:hover:text-white transition-colors active:scale-95 p-2">
+              <Share2 size={24} />
             </button>
           </div>
           
-          <div className="h-6 flex items-center justify-center">
+          <div className="h-8 flex items-center justify-center mt-4">
             {isPreparing && (
               <p className={`${CATEGORY_TEXT_CLASSES[session.category]} font-medium animate-pulse text-[13px]`}>جاري تحضير جلستك المخصصة بصوت الكوتش...</p>
             )}

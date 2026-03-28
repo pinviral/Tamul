@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Settings as SettingsIcon, LogOut, Moon, Sun, Crown, User as UserIcon, ChevronLeft } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { SubscriptionModal } from '../components/SubscriptionModal';
 
 export const Settings: React.FC = () => {
   const { profile, logout } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (document.documentElement.classList.contains('dark')) {
@@ -87,7 +89,7 @@ export const Settings: React.FC = () => {
             <button 
               onClick={() => {
                 if (profile?.plan === 'free') {
-                  setSubscriptionModalOpen(true);
+                  navigate('/pricing');
                 }
               }}
               className="w-full p-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/50 active:bg-gray-50 dark:active:bg-gray-800/50 transition-colors"

@@ -9,6 +9,7 @@ import { Coach } from './pages/Coach';
 import { Journal } from './pages/Journal';
 import { Insights } from './pages/Insights';
 import { Settings } from './pages/Settings';
+import { Pricing } from './pages/Pricing';
 import { Login } from './pages/Login';
 
 // Error Boundary Component
@@ -88,6 +89,7 @@ const AppContent: React.FC = () => {
         <Route path="/journal" element={<ProtectedRoute><Journal /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
       </Routes>
       
       {user && <BottomNav />}
